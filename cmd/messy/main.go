@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -9,9 +10,11 @@ import (
 	"strings"
 
 	"github.com/mattn/go-xmpp"
+	//"github.com/falsechicken/messy"
 )
 
 var server = flag.String("server", "", "server:port")
+var configFile = flag.String("config", ".messy.conf", "Use config file for login details.")
 var username = flag.String("username", "", "username")
 var password = flag.String("password", "", "password")
 var status = flag.String("status", "", "Status")
@@ -22,16 +25,18 @@ var debug = flag.Bool("debug", false, "Enable debug output")
 var session = flag.Bool("session", false, "Use server session")
 
 var remote = flag.String("remote", "", "Jid of the receiver/remote party.")
-var message = flag.String("message", "", "Message to send.")
+var message = flag.String("message", "", "Message to send. Omit for reading stdin.")
+
+var talk *xmpp.Client
 
 func main() {
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: example [options]\n")
-		flag.PrintDefaults()
-		os.Exit(2)
-	}
-	flag.Parse()
+	parseFlags()
+	initXMPP()
+	sendMessage()
+}
 
+//Initialize the XMPP connection.
+func initXMPP() {
 	if !*notls {
 		xmpp.DefaultConfig = tls.Config{
 			ServerName:         serverName(*server),
@@ -44,7 +49,6 @@ func main() {
 		InsecureSkipVerify: true,
 	}
 
-	var talk *xmpp.Client
 	var err error
 	options := xmpp.Options{
 		Host:                         *server,
@@ -64,9 +68,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
 
-	talk.Send(xmpp.Chat{Remote: *remote, Type: "chat", Text: *message})
+//Parse command line flags
+func parseFlags() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "usage: example [options]\n")
+		flag.PrintDefaults()
+		os.Exit(2)
+	}
+	flag.Parse()
+}
 
+//Send the message over xmpp.
+func sendMessage() {
+	if *message == "" {
+		reader := bufio.NewReader(os.Stdin)
+		text, _ := reader.ReadString(8)
+		talk.Send(xmpp.Chat{Remote: *remote, Type: "chat", Text: text})
+	} else {
+		talk.Send(xmpp.Chat{Remote: *remote, Type: "chat", Text: *message})
+	}
 }
 
 //Seperate domain name and port.
